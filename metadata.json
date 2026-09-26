@@ -1,0 +1,6 @@
+{
+  "name": "Sky Hopper",
+  "description": "A polished neon-futuristic arcade flying game starring Nova, featuring floating energy gates, combos, power-ups, cosmetic skins, daily challenges, and multiple game modes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
