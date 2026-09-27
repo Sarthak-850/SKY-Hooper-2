@@ -56,6 +56,7 @@ import { ScoreSubmissionResult } from '../types/leaderboard';
 import { LeaderboardModal } from './LeaderboardModal';
 import { CountrySelectModal } from './CountrySelectModal';
 import { PlayerProfileModal } from './PlayerProfileModal';
+import { AuthModal } from './AuthModal';
 
 interface UIOverlayProps {
   engine: GameEngine | null;
@@ -75,6 +76,7 @@ type ModalType =
   | 'LEADERBOARD'
   | 'PROFILE'
   | 'COUNTRY_SELECT'
+  | 'AUTH'
   | null;
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({
@@ -827,6 +829,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
           onClose={closeModal}
           onOpenLeaderboard={() => setActiveModal('LEADERBOARD')}
           onOpenCountrySelect={() => setActiveModal('COUNTRY_SELECT')}
+          onOpenAuth={() => setActiveModal('AUTH')}
         />
       )}
 
@@ -842,6 +845,17 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
             showNotification('PILOT NATION UPDATED', `Now flying under ${c.flag} ${c.name}!`);
           }}
           onClose={closeModal}
+        />
+      )}
+
+      {/* 4. Pilot Authentication Modal */}
+      {activeModal === 'AUTH' && (
+        <AuthModal
+          onClose={closeModal}
+          onSuccess={(msg) => {
+            setProfile(leaderboardClient.getProfile());
+            showNotification('PILOT HQ', msg);
+          }}
         />
       )}
 

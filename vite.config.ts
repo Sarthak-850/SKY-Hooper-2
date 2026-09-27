@@ -2,15 +2,19 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
-import { apiApp } from './server/api.ts';
+import { app } from './server/src/app.ts';
+import { runMigrations } from './server/src/database/migrate.ts';
 
 function leaderboardApiPlugin(): Plugin {
   return {
     name: 'sky-hooper-leaderboard-api',
     configureServer(server) {
+      // Ensure migrations are run on dev server startup
+      runMigrations().catch((err) => console.warn('Dev migration warning:', err));
+
       server.middlewares.use((req, res, next) => {
         if (req.url && (req.url.startsWith('/api') || req.url === '/api')) {
-          return (apiApp as any)(req, res, next);
+          return (app as any)(req, res, next);
         }
         next();
       });

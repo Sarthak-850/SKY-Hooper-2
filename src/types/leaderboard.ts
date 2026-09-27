@@ -52,10 +52,13 @@ export interface CountryCompetitionEntry {
 export interface LeaderboardResponse {
   category: 'world' | 'country';
   countryCode?: string;
-  timeframe: LeaderboardTimeframe;
+  timeframe?: LeaderboardTimeframe;
   total: number;
+  totalEntries?: number;
   page: number;
   limit: number;
+  totalPages?: number;
+  country?: CountryInfo;
   entries: LeaderboardEntry[];
   podium: LeaderboardEntry[];
   playerEntry?: LeaderboardEntry | null;
@@ -67,6 +70,8 @@ export interface CountryLeaderboardResponse {
   metricDescription: string;
   totalCountries: number;
   countries: CountryCompetitionEntry[];
+  sortedBy?: string;
+  rankings?: CountryCompetitionEntry[];
   playerCountryEntry?: CountryCompetitionEntry | null;
 }
 
@@ -115,11 +120,16 @@ export interface LeaderboardLiveEvent {
 }
 
 export interface PlayerStatsResponse {
-  player: PlayerProfile;
+  player?: PlayerProfile;
   bestScore: number;
   worldRank: number | null;
   countryRank: number | null;
-  totalWorldPlayers: number;
-  totalCountryPlayers: number;
-  totalRuns: number;
+  totalWorldPlayers?: number;
+  totalCountryPlayers?: number;
+  totalRuns?: number;
+  totalGames?: number;
+  totalScore?: number;
+  averageScore?: number;
+  gamesThisWeek?: number;
+  gamesThisMonth?: number;
 }
