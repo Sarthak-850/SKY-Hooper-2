@@ -1,11 +1,26 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig, Plugin } from 'vite';
+import { apiApp } from './server/api.ts';
+
+function leaderboardApiPlugin(): Plugin {
+  return {
+    name: 'sky-hooper-leaderboard-api',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url && (req.url.startsWith('/api') || req.url === '/api')) {
+          return (apiApp as any)(req, res, next);
+        }
+        next();
+      });
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), leaderboardApiPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),
@@ -22,3 +37,4 @@ export default defineConfig(() => {
     },
   };
 });
+

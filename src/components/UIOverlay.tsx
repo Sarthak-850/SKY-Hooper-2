@@ -40,12 +40,22 @@ import {
   Clock,
   Compass,
   Gift,
+  Globe,
+  Flag,
+  ChevronRight,
+  User,
+  TrendingUp,
 } from 'lucide-react';
 import { GameState, GameStats, GameMode, NovaSkinId, Mission, Achievement } from '../game/types';
 import { GameEngine } from '../game/engine';
 import { audioManager } from '../game/audio';
 import { saveDataManager } from '../game/saveData';
 import { NOVA_SKINS } from '../game/constants';
+import { leaderboardClient, LocalPilotProfile } from '../services/leaderboardClient';
+import { ScoreSubmissionResult } from '../types/leaderboard';
+import { LeaderboardModal } from './LeaderboardModal';
+import { CountrySelectModal } from './CountrySelectModal';
+import { PlayerProfileModal } from './PlayerProfileModal';
 
 interface UIOverlayProps {
   engine: GameEngine | null;
@@ -62,6 +72,9 @@ type ModalType =
   | 'STATS'
   | 'SETTINGS'
   | 'HOW_TO_PLAY'
+  | 'LEADERBOARD'
+  | 'PROFILE'
+  | 'COUNTRY_SELECT'
   | null;
 
 export const UIOverlay: React.FC<UIOverlayProps> = ({
@@ -74,6 +87,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [dailyRewardClaimed, setDailyRewardClaimed] = useState(!saveDataManager.checkDailyRewardAvailable());
 
+  // Competitive Pilot Profile & Leaderboard Results
+  const [profile, setProfile] = useState<LocalPilotProfile>(leaderboardClient.getProfile());
+  const [leaderboardResult, setLeaderboardResult] = useState<ScoreSubmissionResult | null>(null);
+  const [showFirstTimeCountry, setShowFirstTimeCountry] = useState(false);
+
   // Toast notification state
   const [toast, setToast] = useState<{ title: string; message: string } | null>(null);
 
@@ -81,6 +99,27 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
     // Check daily reward state on mount
     setDailyRewardClaimed(!saveDataManager.checkDailyRewardAvailable());
   }, [gameState]);
+
+  // Hook engine leaderboard submission result
+  useEffect(() => {
+    if (engine) {
+      engine.onLeaderboardResult = (res) => {
+        setLeaderboardResult(res);
+      };
+    }
+  }, [engine]);
+
+  // Detect country on first startup if not manually confirmed
+  useEffect(() => {
+    if (!profile.countrySelected) {
+      leaderboardClient.initCountryDetection().then((p) => {
+        setProfile(p);
+        if (!p.countrySelected) {
+          setShowFirstTimeCountry(true);
+        }
+      });
+    }
+  }, [profile.countrySelected]);
 
   const showNotification = (title: string, message: string) => {
     setToast({ title, message });
@@ -99,6 +138,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
     e.stopPropagation();
     audioManager.playClick();
     setActiveModal(null);
+    setLeaderboardResult(null);
     engine?.start();
   };
 
@@ -112,6 +152,7 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
     e.stopPropagation();
     audioManager.playClick();
     setActiveModal(null);
+    setLeaderboardResult(null);
     engine?.start();
   };
 
@@ -147,7 +188,12 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
   const handleShareScore = (e: React.MouseEvent) => {
     e.stopPropagation();
     audioManager.playClick();
-    const shareText = `I scored ${stats.score} in Sky Hopper! Can you beat my high score? 🚀✨`;
+    const currentProfile = leaderboardClient.getProfile();
+    const rankInfo = leaderboardResult?.worldRank
+      ? `\n🌎 World Rank: #${leaderboardResult.worldRank.toLocaleString()}\n${currentProfile.countryFlag} ${currentProfile.countryName} Rank: #${leaderboardResult.countryRank.toLocaleString()}`
+      : '';
+
+    const shareText = `🔥 SKY-HOOPER\n\n${currentProfile.countryFlag} ${currentProfile.username}\nScore: ${stats.score.toLocaleString()}${rankInfo}\n\n"Can you beat my score?"`;
 
     if (navigator.share) {
       navigator.share({
@@ -445,6 +491,29 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
             </div>
           </div>
 
+          {/* Pilot Dossier Banner */}
+          <button
+            onClick={(e) => openModal('PROFILE', e)}
+            className="w-full mt-2.5 px-3 py-1.5 bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-sky-500/40 rounded-xl flex items-center justify-between text-xs text-slate-300 transition-all cursor-pointer group shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{profile.countryFlag}</span>
+              <div className="text-left">
+                <span className="font-bold text-white group-hover:text-sky-300 transition-colors block text-xs">
+                  {profile.username}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {profile.countryName || 'India'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-sky-400 font-bold bg-sky-500/10 px-2 py-0.5 rounded-lg border border-sky-500/20">
+              <User className="w-3 h-3" />
+              <span>Dossier</span>
+              <ChevronRight className="w-3 h-3" />
+            </div>
+          </button>
+
           {/* Primary Action Button: START FLIGHT */}
           <button
             onClick={handleStartPlay}
@@ -452,6 +521,15 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
           >
             <Play className="w-5 h-5 fill-current" />
             <span>PLAY</span>
+          </button>
+
+          {/* Leaderboard & Country Competition Button */}
+          <button
+            onClick={(e) => openModal('LEADERBOARD', e)}
+            className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-400/40 text-amber-200 font-extrabold text-xs rounded-xl shadow-md shadow-amber-500/10 transition-all transform active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 mb-2"
+          >
+            <Trophy className="w-4 h-4 text-amber-400" />
+            <span>GLOBAL LEADERBOARD & COUNTRY BATTLE</span>
           </button>
 
           {/* Secondary Navigation Grid */}
@@ -635,6 +713,70 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
             </div>
           </div>
 
+          {/* Competitive Standings Card */}
+          <div className="w-full p-3 bg-gradient-to-r from-sky-950/70 via-indigo-950/70 to-slate-900/70 border border-sky-400/30 rounded-xl mb-3 text-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] uppercase font-bold text-sky-400 tracking-wider flex items-center gap-1">
+                <Globe className="w-3 h-3" />
+                Competitive Standing
+              </span>
+              {(stats.isNewHighScore || leaderboardResult?.isNewBest) && (
+                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 font-extrabold text-[10px] rounded-full border border-amber-500/40 animate-pulse">
+                  NEW PERSONAL BEST! 🔥
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-slate-200">
+              {/* World Rank */}
+              <div className="p-2 bg-slate-950/60 rounded-lg flex flex-col items-center">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold">World Rank</span>
+                <span className="font-mono text-base font-black text-sky-400">
+                  {leaderboardResult?.worldRank
+                    ? `#${leaderboardResult.worldRank.toLocaleString()}`
+                    : stats.isNewHighScore
+                    ? '#--'
+                    : 'Syncing...'}
+                </span>
+                {leaderboardResult && leaderboardResult.worldRankImprovement > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-0.5 mt-0.5">
+                    <TrendingUp className="w-2.5 h-2.5" />
+                    +{leaderboardResult.worldRankImprovement} ranks
+                  </span>
+                )}
+              </div>
+
+              {/* Country Rank */}
+              <div className="p-2 bg-slate-950/60 rounded-lg flex flex-col items-center">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold truncate max-w-[120px]">
+                  {profile.countryFlag} {profile.countryName || 'India'} Rank
+                </span>
+                <span className="font-mono text-base font-black text-amber-400">
+                  {leaderboardResult?.countryRank
+                    ? `#${leaderboardResult.countryRank.toLocaleString()}`
+                    : stats.isNewHighScore
+                    ? '#--'
+                    : 'Syncing...'}
+                </span>
+                {leaderboardResult && leaderboardResult.countryRankImprovement > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-0.5 mt-0.5">
+                    <TrendingUp className="w-2.5 h-2.5" />
+                    +{leaderboardResult.countryRankImprovement} ranks
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* View Leaderboard Button */}
+            <button
+              onClick={(e) => openModal('LEADERBOARD', e)}
+              className="w-full mt-2.5 py-2 px-3 bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-400/40 text-amber-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+              <span>VIEW FULL LEADERBOARD</span>
+            </button>
+          </div>
+
           {/* Action Buttons */}
           <div className="w-full flex flex-col gap-2">
             <button
@@ -671,7 +813,55 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
       )}
 
       {/* ================= MODALS SYSTEM ================= */}
-      {activeModal && (
+      {/* 1. Global Leaderboard Modal */}
+      {activeModal === 'LEADERBOARD' && (
+        <LeaderboardModal
+          onClose={closeModal}
+          onOpenCountrySelect={() => setActiveModal('COUNTRY_SELECT')}
+        />
+      )}
+
+      {/* 2. Pilot Profile Modal */}
+      {activeModal === 'PROFILE' && (
+        <PlayerProfileModal
+          onClose={closeModal}
+          onOpenLeaderboard={() => setActiveModal('LEADERBOARD')}
+          onOpenCountrySelect={() => setActiveModal('COUNTRY_SELECT')}
+        />
+      )}
+
+      {/* 3. Country Select Modal */}
+      {activeModal === 'COUNTRY_SELECT' && (
+        <CountrySelectModal
+          currentCountryCode={profile.countryCode}
+          onSelectCountry={(c) => {
+            leaderboardClient.updateProfile(profile.username, c.code, c.name, c.flag).then((p) => {
+              setProfile(p);
+            });
+            closeModal();
+            showNotification('PILOT NATION UPDATED', `Now flying under ${c.flag} ${c.name}!`);
+          }}
+          onClose={closeModal}
+        />
+      )}
+
+      {/* First-time country selection prompt if not selected */}
+      {showFirstTimeCountry && !activeModal && (
+        <CountrySelectModal
+          currentCountryCode={profile.countryCode}
+          onSelectCountry={(c) => {
+            leaderboardClient.updateProfile(profile.username, c.code, c.name, c.flag).then((p) => {
+              setProfile(p);
+            });
+            setShowFirstTimeCountry(false);
+            showNotification('WELCOME PILOT', `Representing ${c.flag} ${c.name} in global skies!`);
+          }}
+          onClose={() => setShowFirstTimeCountry(false)}
+          isFirstTime={true}
+        />
+      )}
+
+      {activeModal && !['LEADERBOARD', 'PROFILE', 'COUNTRY_SELECT'].includes(activeModal) && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 pointer-events-auto animate-in fade-in duration-150">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl relative max-h-[90vh] flex flex-col">
             {/* Modal Close Button */}
@@ -1024,6 +1214,36 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                       }`}
                     >
                       {!isMuted ? 'ENABLED' : 'MUTED'}
+                    </button>
+                  </div>
+
+                  {/* Pilot Nation */}
+                  <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-white">Pilot Nation</h4>
+                      <p className="text-[11px] text-slate-400">
+                        Flying for {profile.countryFlag} {profile.countryName || 'India'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => openModal('COUNTRY_SELECT', e)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold rounded-lg transition-colors cursor-pointer text-xs"
+                    >
+                      CHANGE
+                    </button>
+                  </div>
+
+                  {/* Pilot Profile */}
+                  <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-white">Pilot Callsign</h4>
+                      <p className="text-[11px] text-slate-400">{profile.username} (View Ranks)</p>
+                    </div>
+                    <button
+                      onClick={(e) => openModal('PROFILE', e)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold rounded-lg transition-colors cursor-pointer text-xs"
+                    >
+                      DOSSIER
                     </button>
                   </div>
 

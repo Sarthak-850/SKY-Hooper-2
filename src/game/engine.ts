@@ -78,6 +78,8 @@ import { ParticleSystem } from './particles';
 import { GameRenderer } from './renderer';
 import { audioManager } from './audio';
 import { saveDataManager } from './saveData';
+import { leaderboardClient } from '../services/leaderboardClient';
+import { ScoreSubmissionResult } from '../types/leaderboard';
 
 export class GameEngine {
   private canvas: HTMLCanvasElement;
@@ -118,6 +120,10 @@ export class GameEngine {
   private runDurationSeconds: number = 0;
   private timeAttackRemaining: number = 60;
   private isNewHighScore: boolean = false;
+
+  // Leaderboard result tracking
+  public onLeaderboardResult?: (result: ScoreSubmissionResult) => void;
+  public latestLeaderboardResult: ScoreSubmissionResult | null = null;
 
   // Sky Zone
   private currentZone: SkyZone = 'NEON_CLOUDS';
@@ -349,6 +355,8 @@ export class GameEngine {
    */
   public start() {
     audioManager.ensureAudio();
+    this.latestLeaderboardResult = null;
+    leaderboardClient.startSession(this.gameMode);
     this.score = 0;
     this.starsInRun = 0;
     this.coinsInRun = 0;
@@ -1442,6 +1450,26 @@ export class GameEngine {
         }
       }
     }
+
+    // Submit validated score to authoritative Global Leaderboard & Country Competition
+    const scoreMetrics = {
+      score: this.score,
+      maxCombo: this.maxCombo,
+      perfectGates: this.perfectGatesInRun,
+      nearMisses: this.nearMissesInRun,
+      stars: this.starsInRun,
+      coins: this.coinsInRun,
+      durationSeconds: Math.max(1, Math.round(this.runDurationSeconds)),
+      zoneReached: this.currentZone,
+      gameMode: this.gameMode,
+    };
+
+    leaderboardClient.submitScore(scoreMetrics).then((result) => {
+      this.latestLeaderboardResult = result;
+      if (this.onLeaderboardResult) {
+        this.onLeaderboardResult(result);
+      }
+    });
 
     this.notifyStats();
   }
